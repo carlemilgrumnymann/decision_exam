@@ -1,0 +1,43 @@
+model {
+  
+#--------------------- "National" level priors ----------------------------
+  for (n in 1:nnations) {
+    mu_alpha[n] ~ dgamma(23, 2.5)
+    prec_alpha[n] ~ dgamma(0.01, 0.01)
+    mu_rho[n] ~ dbeta(1,1)T(0.001,0.999)
+    prec_rho[n] ~ dunif(1,100)
+    shape1_rho[n] <- mu_rho[n] * prec_rho[n]
+    shape2_rho[n] <- (1 - mu_rho[n]) * prec_rho[n]
+    mu_omega[n] ~ dbeta(1,1)T(0.001,0.999)
+    prec_omega[n] ~ dunif(1,100)
+    shape1_omega[n] <- mu_omega[n] * prec_omega[n]
+    shape2_omega[n] <- (1 - mu_omega[n]) * prec_omega[n]
+    }
+
+  #------------------------ Start of loop --------------------------------
+    for (g in 1:ngroups) {
+      for (s in 1:groupSize) {
+        #------------------ Individual-level priors --------------------------
+        alpha[s,g] ~ dgamma(mu_alpha[Nation[g]] * prec_alpha[Nation[g]], prec_alpha[Nation[g]])T(0.001,)
+        rho[s,g]   ~ dbeta(shape1_rho[Nation[g]], shape2_rho[Nation[g]])T(0.001,0.999)
+        omega[s,g] ~ dbeta(shape1_omega[Nation[g]], shape2_omega[Nation[g]])T(0.001,0.999)
+        
+        Gb[s,1,g] ~ dpois(alpha[s,g])
+        p[s,1,g] <- rho[s,g] * Gb[s,1,g]
+        c[s,1,g,1] ~ dpois(p[s,1,g])
+
+      }
+      #--------------- Implementation of CC model --------------------------------
+      for (t in 2:ntrials) {
+        for (s in 1:groupSize) {
+          #- Belief about group contribution
+          Gb[s,t,g] <- ((1-omega[s,g])*(Gb[s,t-1,g]))+(omega[s,g]*(Ga[s,t-1,g,1]))
+          #- Contribution preference, given belief and matching preference rho
+          p[s,t,g] <- rho[s,g]*Gb[s,t,g]
+          #- Contribution as discrete sample from preferences
+          c[s,t,g,1] ~ dpois(p[s,t,g])
+        }
+      }
+   } 
+  
+} 
